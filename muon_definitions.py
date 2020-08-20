@@ -217,7 +217,7 @@ def get_weighted_dataframe(df, doGen, resonance, era, subEra, shift=None):
         mapping_expr = F.create_map(
             [F.lit(x) for x in itertools.chain(*pileupMap.items())])
         weightedDF = df.withColumn(
-            'weight', mapping_expr.getItem(F.col('tag_nVertices')))
+            'weight', mapping_expr.getItem(F.col('pair_truePileup')))
     else:
         weightedDF = df.withColumn('weight', F.lit(1.0))
     weightedDF = weightedDF.withColumn(
