@@ -183,7 +183,7 @@ def get_miniIso_dataframe(df):
     miniIsoDF = df.withColumn('miniIsoAEff', miniIsoAEff_udf(df.abseta))
     miniIsoDF = miniIsoDF.withColumn('miniIso_riso',
                                      miniIsoRiso_udf(miniIsoDF.pt))
-    miniIsoDF = miniIsoDF.withColumn('miniIso_riso2', (F.col('miniIso_riso') * 
+    miniIsoDF = miniIsoDF.withColumn('miniIso_riso2', (F.col('miniIso_riso') *
                                                        F.col('miniIso_riso')))
     miniIsoDF = miniIsoDF.withColumn(
         'miniIso_CorrectedTerm',
