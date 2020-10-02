@@ -28,11 +28,16 @@ def computeEff(n1, n2, e1, e2):
     return eff, err
 
 
-def getEff(binName, fname, shift=None):
+def getEff(binName, fname, shift=None, cutAndCount=False):
     try:
+        # MC Eff is always cut and count now
         tfile = ROOT.TFile(fname, 'read')
-        hP = tfile.Get('{}_GenPass'.format(binName))
-        hF = tfile.Get('{}_GenFail'.format(binName))
+        if cutAndCount:
+            hP = tfile.Get('{}_Pass'.format(binName))
+            hF = tfile.Get('{}_Fail'.format(binName))
+        else:
+            hP = tfile.Get('{}_GenPass'.format(binName))
+            hF = tfile.Get('{}_GenFail'.format(binName))
         # hard code Z for now (same as in run_single_fit.py)
         if shift == 'massRangUp':
             blow, bhigh = 75, 135
@@ -50,50 +55,69 @@ def getEff(binName, fname, shift=None):
         tfile.Close()
         return eff, err
     except Exception as e:
-        print('Exception for', binName)
+        print('Exception for getEff', binName)
         print(e)
         # raise e
         return 1., 0.
 
 
-def getDataEff(binName, fname, shift=None):
+def getDataEff(binName, fname, shift=None, cutAndCount=False):
     try:
         tfile = ROOT.TFile(fname, 'read')
-        fitresP = tfile.Get('{}_resP'.format(binName))
-        fitresF = tfile.Get('{}_resF'.format(binName))
-
-        fitP = fitresP.floatParsFinal().find('nSigP')
-        fitF = fitresF.floatParsFinal().find('nSigF')
-
-        nP = fitP.getVal()
-        nF = fitF.getVal()
-        eP = fitP.getError()
-        eF = fitF.getError()
-
-        hP = tfile.Get('{}_Pass'.format(binName))
-        hF = tfile.Get('{}_Fail'.format(binName))
-        # hard code Z for now (same as in run_single_fit.py)
-        if shift == 'massRangUp':
-            blow, bhigh = 75, 135
-        elif shift == 'massRangeDown':
-            blow, bhigh = 65, 125
+        if cutAndCount:
+            hP = tfile.Get('{}_Pass'.format(binName))
+            hF = tfile.Get('{}_Fail'.format(binName))
+            # hard code Z for now (same as in run_single_fit.py)
+            if shift == 'massRangUp':
+                blow, bhigh = 75, 135
+            elif shift == 'massRangeDown':
+                blow, bhigh = 65, 125
+            else:
+                blow, bhigh = 70, 130
+            bin1 = hP.GetXaxis().FindBin(blow)
+            bin2 = hP.GetXaxis().FindBin(bhigh)
+            eP = ctypes.c_double(-1.0)
+            eF = ctypes.c_double(-1.0)
+            nP = hP.IntegralAndError(bin1, bin2, eP)
+            nF = hF.IntegralAndError(bin1, bin2, eF)
+            eff, err = computeEff(nP, nF, eP.value, eF.value)
         else:
-            blow, bhigh = 70, 130
-        bin1 = hP.GetXaxis().FindBin(blow)
-        bin2 = hP.GetXaxis().FindBin(bhigh)
-        ePalt = ctypes.c_double(-1.0)
-        eFalt = ctypes.c_double(-1.0)
-        hP.IntegralAndError(bin1, bin2, ePalt)
-        hF.IntegralAndError(bin1, bin2, eFalt)
+            fitresP = tfile.Get('{}_resP'.format(binName))
+            fitresF = tfile.Get('{}_resF'.format(binName))
 
-        eP = min(eP, ePalt.value)
-        eF = min(eF, eFalt.value)
+            fitP = fitresP.floatParsFinal().find('nSigP')
+            fitF = fitresF.floatParsFinal().find('nSigF')
+
+            nP = fitP.getVal()
+            nF = fitF.getVal()
+            eP = fitP.getError()
+            eF = fitF.getError()
+
+            hP = tfile.Get('{}_Pass'.format(binName))
+            hF = tfile.Get('{}_Fail'.format(binName))
+            # hard code Z for now (same as in run_single_fit.py)
+            if shift == 'massRangUp':
+                blow, bhigh = 75, 135
+            elif shift == 'massRangeDown':
+                blow, bhigh = 65, 125
+            else:
+                blow, bhigh = 70, 130
+            bin1 = hP.GetXaxis().FindBin(blow)
+            bin2 = hP.GetXaxis().FindBin(bhigh)
+            ePalt = ctypes.c_double(-1.0)
+            eFalt = ctypes.c_double(-1.0)
+            hP.IntegralAndError(bin1, bin2, ePalt)
+            hF.IntegralAndError(bin1, bin2, eFalt)
+
+            eP = min(eP, ePalt.value)
+            eF = min(eF, eFalt.value)
+            eff, err = computeEff(nP, nF, eP, eF)
 
         tfile.Close()
+        return eff, err
 
-        return computeEff(nP, nF, eP, eF)
     except Exception as e:
-        print('Exception for', binName)
+        print('Exception for getDataEff', binName)
         print(e)
         # raise e
         return 1., 0.
@@ -102,6 +126,16 @@ def getDataEff(binName, fname, shift=None):
 def getSF(binName, fname, shift=None):
     mcEff, mcErr = getEff(binName, fname, shift)
     dataEff, dataErr = getDataEff(binName, fname, shift)
+    sf = dataEff / mcEff if mcEff else 0.0
+    sf_err = 0.0
+    if dataEff and mcEff:
+        sf_err = sf * ((dataErr / dataEff)**2 + (mcErr / mcEff)**2)**0.5
+    return sf, sf_err, dataEff, dataErr, mcEff, mcErr
+
+
+def getSF_cutAndCount(binName, fnameData, fnameMC, shift=None):
+    mcEff, mcErr = getEff(binName, fnameMC, shift, True)
+    dataEff, dataErr = getDataEff(binName, fnameData, shift, True)
     sf = dataEff / mcEff if mcEff else 0.0
     sf_err = 0.0
     if dataEff and mcEff:
@@ -168,8 +202,74 @@ def getSyst(binName, fname, fitTypes, shiftTypes):
     return syst
 
 
+def getSyst_cutAndCount(binName, fnameData, fnameMC, fitTypes, shiftTypes):
+    sf, sf_err, dataEff, dataErr, mcEff, mcErr = getSF_cutAndCount(
+        binName, fnameData, fnameMC)
+
+    syst = {}
+    for isyst in fitTypes:
+        systfnameData = fnameData.replace('Nominal', isyst)
+        systfnameMC = fnameMC.replace('Nominal', isyst)
+        # sf, sf_err, dataEff, dataErr, mcEff, mcErr
+        tmp = getSF_cutAndCount(binName, systfnameData, systfnameMC, isyst)
+        syst[isyst] = {
+            'sf': tmp[0],
+            'err': abs(tmp[0]-sf),
+            'dataEff': tmp[2],
+            'dataErr': abs(tmp[2]-dataEff),
+            'mcEff': tmp[4],
+            'mcErr': abs(tmp[4]-mcEff),
+        }
+
+    for isyst in shiftTypes:
+        systUpfnameData = fnameData.replace('Nominal', isyst+'Up')
+        systDnfnameData = fnameData.replace('Nominal', isyst+'Down')
+        systUpfnameMC = fnameMC.replace('Nominal', isyst+'Up')
+        systDnfnameMC = fnameMC.replace('Nominal', isyst+'Down')
+        # sf, sf_err, dataEff, dataErr, mcEff, mcErr
+        tmpUp = getSF_cutAndCount(binName, systUpfnameData,
+                                  systUpfnameMC, isyst+'Up')
+        tmpDn = getSF_cutAndCount(binName, systDnfnameData,
+                                  systDnfnameMC, isyst+'Down')
+        tmp = [
+            (tmpUp[0]+tmpDn[0])/2,
+            (abs(tmpUp[0]-sf)+abs(tmpDn[0]-sf))/2,
+            (tmpUp[2]+tmpDn[2])/2,
+            (abs(tmpUp[2]-dataEff)+abs(tmpDn[2]-dataEff))/2,
+            (tmpUp[4]+tmpDn[4])/2,
+            (abs(tmpUp[4]-mcEff)+abs(tmpDn[4]-mcEff))/2,
+        ]
+        syst[isyst] = {
+            'sf': tmp[0],
+            'err': tmp[1],
+            'dataEff': tmp[2],
+            'dataErr': tmp[3],
+            'mcEff': tmp[4],
+            'mcErr': tmp[5],
+        }
+        syst[isyst+'Up'] = {
+            'sf': tmpUp[0],
+            'err': abs(tmpUp[0]-sf),
+            'dataEff': tmpUp[2],
+            'dataErr': abs(tmpUp[2]-dataEff),
+            'mcEff': tmpUp[4],
+            'mcErr': abs(tmpUp[4]-mcEff),
+        }
+        syst[isyst+'Down'] = {
+            'sf': tmpDn[0],
+            'err': abs(tmpDn[0]-sf),
+            'dataEff': tmpDn[2],
+            'dataErr': abs(tmpDn[2]-dataEff),
+            'mcEff': tmpDn[4],
+            'mcErr': abs(tmpDn[4]-mcEff),
+        }
+
+    return syst
+
+
 def prepare(baseDir, particle, probe, resonance, era,
-            config, num, denom, variableLabels):
+            config, num, denom, variableLabels,
+            skipPlots=False, cutAndCount=False):
 
     subEra = era.split('_')[0]  # data subera is beginning of era
     lumi = registry.luminosity(particle, probe, resonance, era, subEra)
@@ -302,16 +402,34 @@ def prepare(baseDir, particle, probe, resonance, era,
                                     resonance, era,
                                     fitType, effName,
                                     binName + '.root')
-        sf, sf_stat, dataEff, dataStat, mcEff, mcStat = getSF(
-            binName, dataFNameFit)
+        dataFNameCNC = os.path.join(baseDir, 'flat',
+                                    particle, probe,
+                                    resonance, era,
+                                    dataSubEra, 'Nominal',
+                                    extEffName + '.root')
+        mcFNameCNC = os.path.join(baseDir, 'flat',
+                                  particle, probe,
+                                  resonance, era,
+                                  mcSubEra, 'Nominal',
+                                  extEffName + '.root')
+        if cutAndCount:
+            sf, sf_stat, dataEff, dataStat, mcEff, mcStat = getSF_cutAndCount(
+                binName, dataFNameCNC, mcFNameCNC)
+        else:
+            sf, sf_stat, dataEff, dataStat, mcEff, mcStat = getSF(
+                binName, dataFNameFit)
         fitTypes = set(systList['SF']['fitTypes']
                        + systList['dataEff']['fitTypes']
                        + systList['mcEff']['fitTypes'])
         shiftTypes = set(systList['SF']['shiftTypes']
                          + systList['dataEff']['shiftTypes']
                          + systList['mcEff']['shiftTypes'])
-        sf_syst = getSyst(binName, dataFNameFit,
-                          fitTypes, shiftTypes)
+        if cutAndCount:
+            sf_syst = getSyst_cutAndCount(binName, dataFNameCNC, mcFNameCNC,
+                                          fitTypes, shiftTypes)
+        else:
+            sf_syst = getSyst(binName, dataFNameFit,
+                              fitTypes, shiftTypes)
 
         combined_syst = {}
         for kind in ['SF', 'dataEff', 'mcEff']:
@@ -420,7 +538,7 @@ def prepare(baseDir, particle, probe, resonance, era,
     for h in sorted(hists):
         hists[h].Write(h)
 
-        if nVars == 2:
+        if nVars == 2 and not skipPlots:
             cName = 'c' + h
             canvas = ROOT.TCanvas(cName, cName, 1000, 800)
             ROOT.gStyle.SetPaintTextFormat("5.3f")
@@ -441,6 +559,9 @@ def prepare(baseDir, particle, probe, resonance, era,
             canvas.Print('{}.root'.format(plotPath))
 
     tfile.Close()
+
+    if skipPlots:
+        return
 
     # gets a graph projection of an ND histogram for a given axis
     # with axis index (ie x,y,z = 0,1,2) and other dimensions ind

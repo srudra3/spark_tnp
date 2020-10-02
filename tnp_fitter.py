@@ -71,6 +71,8 @@ def add_common_flatten(parser):
                         help='Filter by denominator')
     parser.add_argument('--shiftType', nargs='*',
                         help='Filter by shift type')
+    parser.add_argument('--dataOnly', action='store_true',
+                        help='Only flatten data')
 
 
 def add_common_fit(parser):
@@ -95,6 +97,10 @@ def add_common_prepare(parser):
                         help='Filter by numerator')
     parser.add_argument('--denominator', nargs='*',
                         help='Filter by denominator')
+    parser.add_argument('--skipPlots', action='store_true',
+                        help='Skip efficiency plots')
+    parser.add_argument('--cutAndCount', action='store_true',
+                        help='Use cut and count rather than fits')
 
 
 def add_common_particle(parser):
@@ -221,7 +227,8 @@ def main(argv=None):
         run_spark(args.particle, args.probe, args.resonance, args.era,
                   Configuration(args.config),
                   numerator=args.numerator, denominator=args.denominator,
-                  shiftType=args.shiftType, baseDir=baseDir)
+                  shiftType=args.shiftType, baseDir=baseDir,
+                  dataOnly=args.dataOnly)
         return 0
     elif args.command == 'fit':
         from fitter import run_single_fit, build_fit_jobs, build_condor_submit
@@ -253,6 +260,7 @@ def main(argv=None):
             denominator=args.denominator,
             baseDir=baseDir,
         )
+        jobs = [job + [args.skipPlots, args.cutAndCount] for job in jobs]
         unit = 'efficiency'
         desc = 'Preparing'
 

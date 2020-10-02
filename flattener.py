@@ -48,7 +48,7 @@ def run_conversion(spark, particle, probe, resonance, era, subEra,
         jobPath = os.path.join(_baseDir, jobPath)
     os.makedirs(jobPath, exist_ok=True)
 
-    doGen = subEra in ['DY_madgraph', 'DY_powheg']
+    doGen = subEra in ['DY_madgraph', 'DY_powheg', 'Jpsi']
 
     # default numerator/denominator defintions
     efficiencies = config.efficiencies()
@@ -77,6 +77,13 @@ def run_conversion(spark, particle, probe, resonance, era, subEra,
 
     # select tags
     tagsDF = defDF.filter(config.selection())
+
+    if doGen:
+        if 'mc_selection' in config:
+            tagsDF = tagsDF.filter(config.mc_selection())
+    else:
+        if 'data_selection' in config:
+            tagsDF = tagsDF.filter(config.data_selection())
 
     # build the weights (pileup for MC)
     weightedDF = get_weighted_dataframe(
@@ -223,7 +230,7 @@ subEras = {
         'Run2016_UL_HIPM': ['Run2016', 'DY_madgraph'],
         'Run2016_UL': ['Run2016', 'DY_madgraph'],
         'Run2017_UL': ['Run2017', 'DY_madgraph'],
-        'Run2018_UL': ['Run2018', 'DY_madgraph', 'DY_powheg'],
+        'Run2018_UL': ['Run2018', 'DY_madgraph'],
         # ReReco
         'Run2016': ['Run2016', 'DY_madgraph'],
         'Run2017': ['Run2017', 'DY_madgraph'],
@@ -240,7 +247,11 @@ subEras = {
 
 def run_all(spark, particle, probe, resonance, era,
             config, shift='Nominal', **kwargs):
+    # data only option
+    dataOnly = kwargs.pop('dataOnly', False)
     for subEra in subEras.get(resonance, {}).get(era, []):
+        if dataOnly and subEra not in era:
+            continue
         run_conversion(spark, particle, probe, resonance, era, subEra,
                        config, shift, **kwargs)
 
@@ -251,6 +262,7 @@ def run_spark(particle, probe, resonance, era, config, **kwargs):
     spark = SparkSession\
         .builder\
         .appName("TnP")\
+        .config('spark.dynamicAllocation.maxExecutors', 128)\
         .getOrCreate()
 
     sc = spark.sparkContext
