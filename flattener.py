@@ -262,7 +262,6 @@ def run_spark(particle, probe, resonance, era, config, **kwargs):
     spark = SparkSession\
         .builder\
         .appName("TnP")\
-        .config('spark.dynamicAllocation.maxExecutors', 128)\
         .getOrCreate()
 
     sc = spark.sparkContext
