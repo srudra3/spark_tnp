@@ -174,15 +174,17 @@ def get_miniIso_dataframe(df):
                                         else (0.0433 if abseta <= 2.2
                                               else 0.0577))),
                             T.FloatType())
-    miniIsoRiso2_udf = F.udf(lambda pt:
-                             max(0.05, min(0.2, 10.0/pt)),
-                             T.FloatType())
+    miniIsoRiso_udf = F.udf(lambda pt:
+                            max(0.05, min(0.2, 10.0/pt)),
+                            T.FloatType())
     miniIsolation_udf = F.udf(lambda charged, photon, neutral, corr, pt:
                               (charged+max(0.0, photon+neutral-corr))/pt,
                               T.FloatType())
     miniIsoDF = df.withColumn('miniIsoAEff', miniIsoAEff_udf(df.abseta))
-    miniIsoDF = miniIsoDF.withColumn('miniIso_riso2',
-                                     miniIsoRiso2_udf(miniIsoDF.pt))
+    miniIsoDF = miniIsoDF.withColumn('miniIso_riso',
+                                     miniIsoRiso_udf(miniIsoDF.pt))
+    miniIsoDF = miniIsoDF.withColumn('miniIso_riso2', (F.col('miniIso_riso') *
+                                                       F.col('miniIso_riso')))
     miniIsoDF = miniIsoDF.withColumn(
         'miniIso_CorrectedTerm',
         (F.col('fixedGridRhoFastjetCentralNeutral') *
