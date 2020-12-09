@@ -1,6 +1,8 @@
 # spark-tnp
 Tag and probe analysis using Apache Spark.
 
+HToWW Tag and Probe analysis
+
 ## Before you begin
 This package uses Apache Spark clusters.
 More details on CERN's Apache Spark can be found [here](https://hadoop-user-guide.web.cern.ch/hadoop-user-guide/spark/Using_Spark_on_Hadoop.html).
